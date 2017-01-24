@@ -1,0 +1,39 @@
+<tr bgcolor="ffffff">
+    <td align="right" valign="top" bgcolor="fffff0">
+        <span class="label">Issue Link Types:</span>
+    </td>
+    <td bgcolor="ffffff" nowrap>
+        <table cellpadding="2" cellspacing="2">
+        #foreach ($issueLinkType in $issueLinkTypes)
+            <tr>
+                <td><input type="checkbox" name="$issueLinkType.getId()"
+                #if (${selectedStatuses})
+                    #if (${selectedIssueLinkTypeIds.contains($issueLinkType.getId().toString())})
+                    CHECKED
+                    #end
+                #end
+                ></td>
+                <td>#displayConstantIcon ($issueLinkType)&nbsp;$issueLinkType.getName()</td>
+            </tr>
+        #end
+        </table>
+        <font size="1">Issue link type used to link the 2 issues</font>
+    </td>
+ </tr>
+ <tr bgcolor="ffffff">
+    <td align="right" valign="top" bgcolor="fffff0">
+        <span class="label">Link order:</span>
+    </td>
+    <td bgcolor="ffffff" nowrap>
+        <table cellpadding="2" cellspacing="2">
+            <tr>
+                <td><input type="checkbox" name="reverse"
+                #if ($reverse.equals("reverse"))
+                    CHECKED
+                #end
+                ></td>
+                <td>Reverse the issue link type</td>
+            </tr>
+        </table>
+    </td>
+</tr>

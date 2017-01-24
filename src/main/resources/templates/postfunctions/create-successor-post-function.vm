@@ -1,0 +1,15 @@
+Current issue will be cloned and linked together as : 
+#foreach ($issueLinkType in $issueLinkTypes)
+    <b>$issueLinkType.getName()</b>
+    #if($velocityCount != $issueLinkTypes.size())
+        #if($velocityCount == ($issueLinkTypes.size() - 1))
+            &nbsp;and&nbsp;
+        #else
+            ,&nbsp;
+        #end
+    #end
+#end
+#if($reverse.equals("reverse"))
+	(Reversed link)
+#end
+.

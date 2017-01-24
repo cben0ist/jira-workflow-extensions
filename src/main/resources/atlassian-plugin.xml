@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<atlassian-plugin key="${atlassian.plugin.key}" name="${project.name}" plugins-version="2">
+  <plugin-info>
+    <description>${project.description}</description>
+    <version>${project.version}</version>
+    <vendor name="${project.organization.name}" url="${project.organization.url}"/>
+    <param name="plugin-icon">images/pluginIcon.png</param>
+    <param name="plugin-logo">images/pluginLogo.png</param>
+  </plugin-info>
+  <!-- add our i18n resource -->
+  <resource type="i18n" name="i18n" location="jira-workflow-extensions"/>
+  <!-- add our web resources -->
+  <web-resource key="jira-workflow-extensions-resources" name="jira-workflow-extensions Web Resources">
+    <dependency>com.atlassian.auiplugin:ajs</dependency>
+    <resource type="download" name="jira-workflow-extensions.css" location="/css/jira-workflow-extensions.css"/>
+    <resource type="download" name="jira-workflow-extensions.js" location="/js/jira-workflow-extensions.js"/>
+    <resource type="download" name="images/" location="/images"/>
+    <context>jira-workflow-extensions</context>
+  </web-resource>
+  <workflow-function key="create-successor-post-function" name="Create Successor Post Function" i18n-name-key="create-successor-post-function.name" class="com.cben0ist.jira.plugin.workflow.CreateSuccessorPostFunctionFactory">
+    <description key="create-successor-post-function.description">Clone the current task and links it as a successor</description>
+    <function-class>com.cben0ist.jira.plugin.workflow.CreateSuccessorPostFunction</function-class>
+    <resource type="velocity" name="view" location="templates/postfunctions/create-successor-post-function.vm"/>
+    <resource type="velocity" name="input-parameters" location="templates/postfunctions/create-successor-post-function-input.vm"/>
+    <resource type="velocity" name="edit-parameters" location="templates/postfunctions/create-successor-post-function-input.vm"/>
+  </workflow-function>
+</atlassian-plugin>
