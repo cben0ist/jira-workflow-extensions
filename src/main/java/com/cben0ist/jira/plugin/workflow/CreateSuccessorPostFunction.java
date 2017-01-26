@@ -97,6 +97,7 @@ public class CreateSuccessorPostFunction extends AbstractJiraFunctionProvider {
 			if (!createResult.isValid()) {
 				log.error("Unable to clone issue", createResult.getErrorCollection());
 			} else {
+				// log.error("Task created", createResult.getIssue().getKey());
 				// Link both task as successor/predecessor
 				for (IssueLinkType issueLinkType : selectedIssueLinkTypes) {
 					try {
@@ -112,6 +113,9 @@ public class CreateSuccessorPostFunction extends AbstractJiraFunctionProvider {
 					}
 				}
 			}
+		} else {
+			log.error("Unable to create the issue", createValidationResult.getErrorCollection());
 		}
+
 	}
 }
