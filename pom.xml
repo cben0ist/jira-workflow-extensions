@@ -5,12 +5,12 @@
 	<modelVersion>4.0.0</modelVersion>
 	<groupId>com.cben0ist.jira.plugin</groupId>
 	<artifactId>jira-workflow-extensions</artifactId>
-	<version>1.0.1-SNAPSHOT</version>
+	<version>1.0.18-SNAPSHOT</version>
 	<organization>
 		<name>cben0ist</name>
 	</organization>
 	<name>jira-workflow-extensions</name>
-	<description>This is the com.cben0ist.jira.plugin:jira-workflow-extensions plugin for Atlassian JIRA.</description>
+	<description>Add a create Successor post-function to partially clone and link a new task</description>
 	<packaging>atlassian-plugin</packaging>
 	<dependencies>
 		<dependency>

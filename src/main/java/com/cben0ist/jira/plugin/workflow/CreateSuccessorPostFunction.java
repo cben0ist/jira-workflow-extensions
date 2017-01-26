@@ -47,11 +47,75 @@ public class CreateSuccessorPostFunction extends AbstractJiraFunctionProvider {
 	}
 
 	public void execute(Map transientVars, Map args, PropertySet ps) throws WorkflowException {
-		// Get the user and current issue
+		// Get the user and current issue details
 		ApplicationUser user = this.authenticationContext.getLoggedInUser();
 		MutableIssue currentIssue = getIssue(transientVars);
 
+		// Create the new issue
+		MutableIssue newIssue = null;
+		try {
+			newIssue = createIssue(user, currentIssue.getProjectId(), currentIssue.getIssueTypeId(), currentIssue.getSummary(),
+					currentIssue.getReporterId(), currentIssue.getAssigneeId(), currentIssue.getDescription(), currentIssue.getEnvironment(),
+					currentIssue.getPriority().getId(), currentIssue.getSecurityLevelId());
+		} catch (WorkflowException e) {
+			// This is a tentative if the previous issue cannot be created due to users problems (?!?)
+			log.warn("Unable to create the issue, trying again with different users this time... " + e.getMessage());
+			newIssue = createIssue(user, currentIssue.getProjectId(), currentIssue.getIssueTypeId(), currentIssue.getSummary(), user.getKey(),
+					currentIssue.getProjectObject().getProjectLead().getKey(), currentIssue.getDescription(), currentIssue.getEnvironment(),
+					currentIssue.getPriority().getId(), currentIssue.getSecurityLevelId());
+		}
+
+		// Link both issues together
 		// get the list of links selected on wf creation (Comma separated list of issueLinkType ids)
+		List<IssueLinkType> selectedIssueLinkTypes = getIssueLinkTypeList(args);
+		boolean reverse = isReverse(args);
+
+		// Link the 2 issues together
+		linkTasks(user, currentIssue, selectedIssueLinkTypes, reverse, newIssue);
+
+	}
+
+	private MutableIssue createIssue(ApplicationUser user, Long projectId, String issueTypeId, String summary, String reporterId, String assigneeId,
+			String description, String environment, String priorityId, Long securityLevelId) throws WorkflowException {
+		// Create the new task
+		IssueInputParameters issueInputParameters = issueService.newIssueInputParameters();
+		issueInputParameters.setProjectId(projectId).setIssueTypeId(issueTypeId).setSummary(summary).setReporterId(reporterId)
+				.setAssigneeId(assigneeId).setDescription(description).setEnvironment(environment).setPriorityId(priorityId)
+				.setSecurityLevelId(securityLevelId);
+
+		/* TODO: set fixVersion +1 and sprint +1 ? */
+
+		CreateValidationResult createValidationResult = issueService.validateCreate(user, issueInputParameters);
+		if (createValidationResult.isValid()) {
+			IssueResult createResult = issueService.create(user, createValidationResult);
+			if (createResult.isValid()) {
+				return createResult.getIssue();
+			} else {
+				throw new WorkflowException("Unable to create the issue, IssueResult is not valid: " + createResult.getErrorCollection().toString());
+			}
+		} else {
+			throw new WorkflowException(
+					"Unable to create the issue, CreateValidationResult is not valid: " + createValidationResult.getErrorCollection().toString());
+		}
+	}
+
+	private void linkTasks(ApplicationUser user, MutableIssue currentIssue, List<IssueLinkType> selectedIssueLinkTypes, boolean reverse,
+			MutableIssue clonedIssue) {
+		// Link both task as requested
+		for (IssueLinkType issueLinkType : selectedIssueLinkTypes) {
+			try {
+				if (!reverse) {
+					issueLinkManager.createIssueLink(clonedIssue.getId(), currentIssue.getId(), issueLinkType.getId(), null, user);
+				} else {
+					issueLinkManager.createIssueLink(currentIssue.getId(), clonedIssue.getId(), issueLinkType.getId(), null, user);
+				}
+			} catch (CreateException e) {
+				log.error("Unable to link issue", e);
+			}
+		}
+	}
+
+	private List<IssueLinkType> getIssueLinkTypeList(Map args) {
 		String issueLinkTypeids = (String) args.get(CreateSuccessorPostFunctionFactory.ISSUE_LINK_TYPES);
 		StringTokenizer st = new StringTokenizer(issueLinkTypeids, ",");
 
@@ -69,53 +133,15 @@ public class CreateSuccessorPostFunction extends AbstractJiraFunctionProvider {
 			}
 
 		}
+		return selectedIssueLinkTypes;
+	}
 
+	private boolean isReverse(Map args) {
 		String reversArg = (String) args.get(CreateSuccessorPostFunctionFactory.REVERSE);
 		boolean reverse = false;
 		if (reversArg != null) {
 			reverse = (reversArg).equals("reverse");
 		}
-
-		// Create the new task
-		IssueInputParameters issueInputParameters = issueService.newIssueInputParameters();
-		issueInputParameters.setProjectId(currentIssue.getProjectId()).setIssueTypeId(currentIssue.getIssueTypeId())
-				.setSummary(currentIssue.getSummary()).setReporterId(currentIssue.getReporterId()).setAssigneeId(currentIssue.getAssigneeId())
-				.setDescription(currentIssue.getDescription()).setEnvironment(currentIssue.getEnvironment())
-				// .setStatusId(currentIssue.getStatusId())
-				.setPriorityId(currentIssue.getPriority().getId())
-				// .setResolutionId(currentIssue.getResolutionId())
-				.setSecurityLevelId(currentIssue.getSecurityLevelId())
-		// .setFixVersionIds(currentIssue.getFixVersions());
-		;
-
-		/* TODO: set fixVersion and sprint ? */
-
-		CreateValidationResult createValidationResult = issueService.validateCreate(user, issueInputParameters);
-
-		if (createValidationResult.isValid()) {
-			IssueResult createResult = issueService.create(user, createValidationResult);
-			if (!createResult.isValid()) {
-				log.error("Unable to clone issue", createResult.getErrorCollection());
-			} else {
-				// log.error("Task created", createResult.getIssue().getKey());
-				// Link both task as successor/predecessor
-				for (IssueLinkType issueLinkType : selectedIssueLinkTypes) {
-					try {
-						if (!reverse) {
-							issueLinkManager.createIssueLink(createResult.getIssue().getId(), currentIssue.getId(), issueLinkType.getId(), null,
-									user);
-						} else {
-							issueLinkManager.createIssueLink(currentIssue.getId(), createResult.getIssue().getId(), issueLinkType.getId(), null,
-									user);
-						}
-					} catch (CreateException e) {
-						log.error("Unable to link issue", e);
-					}
-				}
-			}
-		} else {
-			log.error("Unable to create the issue", createValidationResult.getErrorCollection());
-		}
-
+		return reverse;
 	}
 }
