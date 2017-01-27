@@ -13,8 +13,11 @@ import com.atlassian.jira.bc.issue.IssueService.CreateValidationResult;
 import com.atlassian.jira.bc.issue.IssueService.IssueResult;
 import com.atlassian.jira.component.ComponentAccessor;
 import com.atlassian.jira.exception.CreateException;
+import com.atlassian.jira.issue.CustomFieldManager;
+import com.atlassian.jira.issue.IssueImpl;
 import com.atlassian.jira.issue.IssueInputParameters;
 import com.atlassian.jira.issue.MutableIssue;
+import com.atlassian.jira.issue.fields.CustomField;
 import com.atlassian.jira.issue.link.IssueLinkManager;
 import com.atlassian.jira.issue.link.IssueLinkType;
 import com.atlassian.jira.issue.link.IssueLinkTypeManager;
@@ -37,13 +40,14 @@ public class CreateSuccessorPostFunction extends AbstractJiraFunctionProvider {
 	private final IssueLinkTypeManager issueLinkTypeManager;
 	private final JiraAuthenticationContext authenticationContext;
 	private final IssueService issueService;
+	private final CustomFieldManager customFieldManager;
 
 	public CreateSuccessorPostFunction() {
 		this.issueLinkManager = ComponentAccessor.getIssueLinkManager();
 		this.issueLinkTypeManager = ComponentAccessor.getComponent(IssueLinkTypeManager.class);
 		this.authenticationContext = ComponentAccessor.getJiraAuthenticationContext();
-		// this.versionManager = ComponentAccessor.getVersionManager();
 		this.issueService = ComponentAccessor.getIssueService();
+		this.customFieldManager = ComponentAccessor.getCustomFieldManager();
 	}
 
 	public void execute(Map transientVars, Map args, PropertySet ps) throws WorkflowException {
@@ -52,17 +56,21 @@ public class CreateSuccessorPostFunction extends AbstractJiraFunctionProvider {
 		MutableIssue currentIssue = getIssue(transientVars);
 
 		// Create the new issue
+		// TODO pass the custom field id from the factory
+		String epicLink = getEpicLinkValue(currentIssue, "customfield_10671");
+
+		// TODO try to clone better than create
 		MutableIssue newIssue = null;
 		try {
 			newIssue = createIssue(user, currentIssue.getProjectId(), currentIssue.getIssueTypeId(), currentIssue.getSummary(),
 					currentIssue.getReporterId(), currentIssue.getAssigneeId(), currentIssue.getDescription(), currentIssue.getEnvironment(),
-					currentIssue.getPriority().getId(), currentIssue.getSecurityLevelId());
+					currentIssue.getPriority().getId(), currentIssue.getSecurityLevelId(), epicLink);
 		} catch (WorkflowException e) {
 			// This is a tentative if the previous issue cannot be created due to users problems (?!?)
 			log.warn("Unable to create the issue, trying again with different users this time... " + e.getMessage());
 			newIssue = createIssue(user, currentIssue.getProjectId(), currentIssue.getIssueTypeId(), currentIssue.getSummary(), user.getKey(),
 					currentIssue.getProjectObject().getProjectLead().getKey(), currentIssue.getDescription(), currentIssue.getEnvironment(),
-					currentIssue.getPriority().getId(), currentIssue.getSecurityLevelId());
+					currentIssue.getPriority().getId(), currentIssue.getSecurityLevelId(), epicLink);
 		}
 
 		// Link both issues together
@@ -75,13 +83,38 @@ public class CreateSuccessorPostFunction extends AbstractJiraFunctionProvider {
 
 	}
 
+	private String getEpicLinkValue(MutableIssue currentIssue, String cfId) {
+		CustomField epicLinkCustomField = customFieldManager.getCustomFieldObject(cfId);
+		if (epicLinkCustomField == null) {
+			log.error("epicLinkCustomField == null");
+			return null;
+		}
+
+		Object epicLinkObject = currentIssue.getCustomFieldValue(epicLinkCustomField);
+		if (epicLinkObject == null) {
+			log.error("epicLinkObject == null");
+			return null;
+		}
+
+		if (!(epicLinkObject instanceof IssueImpl)) {
+			log.error("!(epicLinkObject instanceof IssueImpl)");
+			return null;
+		}
+
+		return ((IssueImpl) epicLinkObject).getKey();
+	}
+
 	private MutableIssue createIssue(ApplicationUser user, Long projectId, String issueTypeId, String summary, String reporterId, String assigneeId,
-			String description, String environment, String priorityId, Long securityLevelId) throws WorkflowException {
+			String description, String environment, String priorityId, Long securityLevelId, String epicLink) throws WorkflowException {
 		// Create the new task
 		IssueInputParameters issueInputParameters = issueService.newIssueInputParameters();
 		issueInputParameters.setProjectId(projectId).setIssueTypeId(issueTypeId).setSummary(summary).setReporterId(reporterId)
 				.setAssigneeId(assigneeId).setDescription(description).setEnvironment(environment).setPriorityId(priorityId)
 				.setSecurityLevelId(securityLevelId);
+
+		if (epicLink != null) {
+			issueInputParameters.addCustomFieldValue("customfield_10671", epicLink);
+		}
 
 		/* TODO: set fixVersion +1 and sprint +1 ? */
 
@@ -126,6 +159,7 @@ public class CreateSuccessorPostFunction extends AbstractJiraFunctionProvider {
 			try {
 				selectedIssueLinkType = issueLinkTypeManager.getIssueLinkType(Long.parseLong(issueLinkTypeId));
 			} catch (Exception e) {
+				// getting lots more than what I need here... Just ignoring the invalid ones
 				// log.warn("Invalid issueLinkTypeId", e);
 			}
 			if (selectedIssueLinkType != null) {
@@ -137,6 +171,7 @@ public class CreateSuccessorPostFunction extends AbstractJiraFunctionProvider {
 	}
 
 	private boolean isReverse(Map args) {
+		// Inward or Outward
 		String reversArg = (String) args.get(CreateSuccessorPostFunctionFactory.REVERSE);
 		boolean reverse = false;
 		if (reversArg != null) {
